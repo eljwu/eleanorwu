@@ -1,24 +1,23 @@
-const motionButton = document.querySelector('.motion-toggle');
-const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-function updateMotion(paused) {
-  document.documentElement.classList.toggle('motion-paused', paused);
-  motionButton.setAttribute('aria-pressed', String(paused));
-  motionButton.setAttribute('aria-label', paused ? 'Resume motion' : 'Pause motion');
-  motionButton.textContent = paused ? '▶' : 'Ⅱ';
-}
-updateMotion(reducedMotion.matches);
-if (reducedMotion.matches) motionButton.hidden = true;
-motionButton.addEventListener('click', () => updateMotion(motionButton.getAttribute('aria-pressed') !== 'true'));
-const links = [...document.querySelectorAll('.nav a[href^="#"]')];
-if ('IntersectionObserver' in window) {
-  const observer = new IntersectionObserver(entries => {
-    for (const entry of entries) {
-      if (!entry.isIntersecting) continue;
-      links.forEach(link => {
-        if (link.hash === '#' + entry.target.id) link.setAttribute('aria-current', 'location');
-        else link.removeAttribute('aria-current');
-      });
-    }
-  }, {rootMargin:'-25% 0px -55% 0px'});
-  document.querySelectorAll('main > section').forEach(section => observer.observe(section));
-}
+
+(()=>{const root=document.documentElement, media=matchMedia('(prefers-reduced-motion: reduce)'), button=document.querySelector('#motion-toggle');let enabled=!media.matches, pending=false;
+const progress=document.querySelector('.reading-progress'), cover=document.querySelector('.cover'), field=document.querySelector('.fieldhead'), water=document.querySelector('.interlude');
+const windows=[...document.querySelectorAll('.image-window,.fieldhead,.cover figure,.photoessay figure')];const reveal=[...document.querySelectorAll('.folio,.experience article,.project,.photoessay figure')];
+const observer='IntersectionObserver' in window?new IntersectionObserver(entries=>{entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in-view');observer.unobserve(e.target)}})},{threshold:.08}):null;
+function update(){pending=false;if(!enabled)return;let vh=innerHeight;progress.style.transform=`scaleX(${scrollY/Math.max(1,document.documentElement.scrollHeight-vh)})`;for(const el of windows){const r=el.getBoundingClientRect();if(r.bottom<0||r.top>vh)continue;let t=Math.max(-1,Math.min(1,(r.top+r.height/2-vh/2)/vh));el.style.setProperty('--drift',`${-t*18}px`);el.style.setProperty('--type-drift',`${t*30}px`)}if(field){let r=field.getBoundingClientRect();field.style.setProperty('--field-drift',`${Math.max(-24,Math.min(24,(vh/2-r.top-r.height/2)*.055))}px`)}if(water){let r=water.getBoundingClientRect();let t=Math.max(0,Math.min(1,(vh-r.top)/(vh+r.height)));water.style.setProperty('--water-scale',1.025+t*.09);water.style.setProperty('--type-drift',`${(t-.5)*65}px`)}}
+function request(){if(!pending&&enabled){pending=true;requestAnimationFrame(update)}}
+function apply(){root.classList.toggle('motion-on',enabled);root.classList.toggle('motion-off',!enabled);if(button){button.textContent=enabled?'Motion on':'Motion off';button.setAttribute('aria-pressed',String(enabled))}if(enabled&&observer){reveal.forEach(el=>{el.classList.add('reveal-ready');observer.observe(el)})}else{observer?.disconnect();reveal.forEach(el=>el.classList.add('in-view'))}request()}
+button?.addEventListener('click',()=>{enabled=!enabled;apply()});media.addEventListener?.('change',e=>{enabled=!e.matches;apply()});addEventListener('scroll',request,{passive:true});addEventListener('resize',request);cover?.addEventListener('pointermove',e=>{if(enabled&&e.pointerType==='mouse'){let r=cover.getBoundingClientRect();cover.style.setProperty('--sheen',`${100*(e.clientX-r.left)/r.width}%`)}});apply();})();
+
+// Native scrolling: touch, trackpad, keyboard and buttons. No scroll hijacking.
+const rail=document.querySelector('.photo-rail');const arrows=[...document.querySelectorAll('[data-dir]')];const meter=document.querySelector('.rail-progress span');
+function railState(){const max=rail.scrollWidth-rail.clientWidth;arrows[0].disabled=rail.scrollLeft<2;arrows[1].disabled=rail.scrollLeft>=max-2;meter.style.width=`${max>0?100*rail.scrollLeft/max:100}%`;}arrows.forEach(b=>b.addEventListener('click',()=>rail.scrollBy({left:Number(b.dataset.dir)*rail.clientWidth*.72,behavior:document.documentElement.classList.contains('motion-off')||matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'})));rail.addEventListener('scroll',railState,{passive:true});addEventListener('resize',railState);addEventListener('load',railState);railState();
+const dialog=document.querySelector('#photo-dialog');let previous;document.querySelectorAll('.photo-open').forEach(b=>b.addEventListener('click',()=>{previous=b;const image=b.querySelector('img');dialog.querySelector('img').src=image.src;dialog.querySelector('img').alt=image.alt;dialog.showModal();}));dialog.querySelector('button').addEventListener('click',()=>dialog.close());dialog.addEventListener('click',e=>{if(e.target===dialog)dialog.close()});dialog.addEventListener('close',()=>previous?.focus());
+
+// Contact form: set data-endpoint to your verified Formspree URL in index.html.
+const contactForm=document.querySelector('#contact-form');
+const formStatus=document.querySelector('#form-status');
+const sendButton=contactForm.querySelector('button');
+const endpoint=contactForm.dataset.endpoint.trim();
+const configured=/^https:\/\/formspree\.io\/f\/[A-Za-z0-9_-]+$/.test(endpoint);
+if(configured){contactForm.action=endpoint;sendButton.disabled=false;formStatus.textContent='';}
+contactForm.addEventListener('submit',async e=>{e.preventDefault();if(!configured)return;sendButton.disabled=true;formStatus.textContent='Sending…';try{const response=await fetch(endpoint,{method:'POST',body:new FormData(contactForm),headers:{Accept:'application/json'}});if(!response.ok)throw new Error('Submission failed');contactForm.reset();formStatus.textContent='Thank you! Your message has been sent.';}catch(err){formStatus.textContent='Your message could not be sent. Please try again later.';}finally{sendButton.disabled=false;}});
